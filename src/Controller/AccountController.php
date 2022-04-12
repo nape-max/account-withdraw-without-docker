@@ -3,10 +3,10 @@
 namespace Controller;
 
 use DatabaseConnection\MysqlConnection;
-use Exception;
 use View\View;
-use Model\AccountModel;
-use PDOException;
+use Service\AccountService;
+use Repository\AccountRepository;
+use Mapper\AccountMapper;
 
 class AccountController
 {
@@ -39,10 +39,10 @@ class AccountController
     public static function logoutAction()
     {
         if (isset($_COOKIE['access_token'])) {
-            $accountModel = new AccountModel(new MysqlConnection());
-            $user = $accountModel->getUserByAccessToken($_COOKIE['access_token']);
+            $accountService = new AccountService(new AccountRepository(new MysqlConnection()), new AccountMapper());
+            $user = $accountService->getAccountByAccessToken($_COOKIE['access_token']);
 
-            if ($accountModel->setAccessTokenByUsername($user->username, null)) {
+            if ($accountService->setAccessTokenByUsername(null, $user->username)) {
                 setcookie('access_token', false);
             }
         }
@@ -52,12 +52,15 @@ class AccountController
 
     public static function authorizeActionPost()
     {
-        $accountModel = new AccountModel(new MysqlConnection());
+        $accountService = new AccountService(new AccountRepository(new MysqlConnection()), new AccountMapper());
 
-        $user = $accountModel->getUserByUsername($_POST['username']);
+        $usernameFromRequest = $_POST['username'];
+        $passwordFromRequest = $_POST['password'];
 
-        if (null !== $user) {
-            $accessToken = $accountModel->authorizeUser($user);
+        $account = $accountService->getAccountByUsername($usernameFromRequest);
+
+        if (null !== $account) {
+            $accessToken = $accountService->authorizeUserByPassword($account, $passwordFromRequest);
 
             if ($accessToken !== false) {
                 header("Location: /account");
@@ -73,7 +76,7 @@ class AccountController
 
     public static function getProfile()
     {
-        self::checkIsAuthorized();
+        self::checkIsAuthorized($_COOKIE['access_token']);
 
         $data = [];
 
@@ -82,49 +85,62 @@ class AccountController
             setcookie('is_withdraw_failed', false, 0, "/account", "finance-app", false, true);
         }
 
-        $accountModel = new AccountModel(new MysqlConnection());
+        if (isset($_COOKIE['is_amount_wrong'])) {
+            $data['errors'][] = "Неверное значение суммы к списанию. Необходимо ввести положительное число. Примеры: 500, 500.0, 500.05";
+            setcookie('is_amount_wrong', false, 0, "/account", "finance-app", false, true);
+        }
+
+        $accountService = new AccountService(new AccountRepository(new MysqlConnection()), new AccountMapper());
         $view = new View();
 
-        $user = $accountModel->getUserByAccessToken($_COOKIE['access_token']);
+        $user = $accountService->getAccountByAccessToken($_COOKIE['access_token']);
 
-        $data['username'] = $user->username;
-        $data['balance'] = $user->balance;
+        $data['username'] = $user->getUsername();
+        $data['balance'] = (string) $user->getBalance();
 
         $view->generate('Account', 'AccountView', $data);
     }
 
     public static function withdrawFromBalanceAction()
     {
-        self::checkIsAuthorized();
+        self::checkIsAuthorized($_COOKIE['access_token']);
 
-        $accountModel = new AccountModel(new MysqlConnection());
+        $accessTokenFromCookie = $_COOKIE['access_token'];
 
-        $userByAccessToken = $accountModel->getUserByAccessToken($_COOKIE['access_token']);
-        $userByUsername = $accountModel->getUserByUsername($_POST['username']);
+        $usernameFromRequest = $_POST['username'];
+        $passwordFromRequest = $_POST['password'];
+        $amountFromRequest = $_POST['amount'];
+
+        $amountFromRequest = str_replace(',', '.', $_POST['amount']);
+
+        if (preg_match('/^[+]?[0-9]+([.][0-9]{1,2})?$/', $amountFromRequest) === 0) {
+            header("Location: /account");
+            setcookie('is_amount_wrong', 1, 0, "/account", "finance-app", false, true);
+        }
+
+        $accountService = new AccountService(new AccountRepository(new MysqlConnection()), new AccountMapper());
+
+        $userByAccessToken = $accountService->getAccountByAccessToken($accessTokenFromCookie);
+        $userByUsername = $accountService->getAccountByUsername($usernameFromRequest);
 
         if (null !== $userByUsername) {
-            if ($accountModel->isAllowWithdraw($userByUsername, $userByAccessToken)) {
-                $isWithdrawed = $accountModel->withdrawFromBalanceByAccessToken($userByAccessToken->accessToken, $_POST['amount']);
-
-                if ($isWithdrawed) {
-                    header("Location: /account");
-                    sleep(1); // Чтобы страница с успехом отображалась позже и на обоих страницах не было ошибки "Не удалось списать средства из-за куки установленной на другой странице", не влияет на логику - просто недоработка механизма вывода ошибок на фронтенд и общения между View.
-                    setcookie('is_withdraw_failed', false, 0, "/account", "finance-app", false, true);
-                    exit;
-                } else {
-                    setcookie('is_withdraw_failed', 1, 0, "/account", "finance-app", false, true);
-                    header("Location: /account");
-                }
+            if ($accountService->withdrawFromBalance($amountFromRequest, $passwordFromRequest, $userByUsername, $userByAccessToken)) {
+                header("Location: /account");
+                sleep(1); // Чтобы страница с успехом отображалась позже и на обоих страницах не было ошибки "Не удалось списать средства из-за куки установленной на другой странице", не влияет на логику - просто недоработка механизма вывода ошибок на фронтенд и общения между View.
+                setcookie('is_withdraw_failed', false, 0, "/account", "finance-app", false, true);
+            } else {
+                setcookie('is_withdraw_failed', 1, 0, "/account", "finance-app", false, true);
+                header("Location: /account");
             }
         }
     }
 
-    public static function checkIsAuthorized()
+    public static function checkIsAuthorized(?string $accessToken)
     {
-        $accountModel = new AccountModel(new MysqlConnection());
+        $accountService = new AccountService(new AccountRepository(new MysqlConnection()), new AccountMapper());
         $view = new View();
 
-        if (!$accountModel->isAuthorized()) {
+        if (!$accountService->isAuthorized($accessToken)) {
             setcookie('access_token', false, 0, "/", "finance-app", false, true);
             $view->generate('Account', 'NotAuthorized');
 

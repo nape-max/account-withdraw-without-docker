@@ -16,7 +16,7 @@ if (isset($data['errors'])) {
 <form action='http://finance-app/account/withdraw' method='POST'>
     <p>
         <label for='amount'>Списать средства в количестве:</label>
-        <input name='amount' type='number'></input>
+        <input name='amount' type='number' step="0.01"></input>
     </p>
     <p>Данные для подтверждения операции:</p>
     <p>

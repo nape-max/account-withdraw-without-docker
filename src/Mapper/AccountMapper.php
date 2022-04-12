@@ -12,13 +12,12 @@ class AccountMapper
             return null;
         }
 
-        $account = new Account();
-
-        $account->id = $databaseResult['id'];
-        $account->username = $databaseResult['username'];
-        $account->password = $databaseResult['password'];
-        $account->balance = $databaseResult['balance'];
-        $account->accessToken = $databaseResult['access_token'];
+        $account = (new Account())
+            ->setId($databaseResult['id'])
+            ->setUsername($databaseResult['username'])
+            ->setPassword($databaseResult['password'])
+            ->setBalance($databaseResult['balance'])
+            ->setAccessToken($databaseResult['access_token']);
 
         return $account;
     }

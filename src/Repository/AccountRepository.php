@@ -1,21 +1,29 @@
 <?php
 
-namespace Model;
+namespace Repository;
 
-use Entity\Account;
-use Mapper\AccountMapper;
 use DatabaseConnection\MysqlConnection;
+use Entity\Account;
 
-class AccountModel
+class AccountRepository
 {
-    private $connection;
+    /**
+     * @var PDO
+     */
+    protected $connection;
 
-    public function __construct(MysqlConnection $connection)
+    public function __construct(MysqlConnection $mysqlConnection)
     {
-        $this->connection = $connection->getConnection();
+        $this->connection = $mysqlConnection->getConnection();
     }
 
-    public function getUserByUsername($username): ?Account
+    /**
+     * Found Account by username
+     *
+     * @param string $username
+     * @return stdclass|false
+     */
+    public function getAccountByUsername(string $username)
     {
         $statement = $this
             ->connection
@@ -26,16 +34,15 @@ class AccountModel
         $statement->bindValue(':username', $username);
         $statement->execute();
 
-        $result = $statement->fetchObject(Account::class);
-
-        //$mapper = new AccountMapper();
-
-        //$account = $mapper->databaseResultToEntity($result);
-
-        return $result;
+        return $statement->fetch();
     }
 
-    public function getUserByAccessToken($accessToken): ?Account
+    /**
+     * Found Account by access token
+     *
+     * @return stdclass|false
+     */
+    public function getAccountByAccessToken(string $accessToken)
     {
         $statement = $this
             ->connection
@@ -46,16 +53,15 @@ class AccountModel
         $statement->bindValue(':accessToken', $accessToken);
         $statement->execute();
 
-        $result = $statement->fetch();
-
-        $mapper = new AccountMapper();
-
-        $account = $mapper->databaseResultToEntity($result);
-
-        return $account;
+        return $statement->fetch();
     }
 
-    public function setAccessTokenByUsername($username, $accessToken)
+    /**
+     * @param string|null $accessToken
+     * @param string $username
+     * @return bool
+     */
+    public function setAccessTokenByUsername(?string $accessToken, string $username)
     {
         $statement = $this
             ->connection
@@ -70,42 +76,14 @@ class AccountModel
         return true;
     }
 
-    public function authorizeUser(Account $user)
-    {
-        $isVerified = $this->verifyUser($user);
-
-        if ($isVerified) {
-            $accessToken = bin2hex($user->username . random_bytes(36));
-
-            if ($this->setAccessTokenByUsername($user->username, $accessToken)) {
-                return $accessToken;
-            }
-        }
-
-        return false;
-    }
-
-    public function isAllowWithdraw(Account $userByUsername, Account $userByAccessToken)
-    {
-        $isVerified = $this->verifyUser($userByUsername);
-
-        if ($isVerified !== false && $userByUsername->accessToken === $userByAccessToken->accessToken) {
-            return true;
-        }
-
-        return false;
-    }
-
-    public function verifyUser(Account $user)
-    {
-        if (true === password_verify($_POST['password'], $user->password)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    public function withdrawFromBalanceByAccessToken($accessToken, $withdrawAmount)
+    /**
+     * Withdraw money using repository with transaction in Serialaziable isolation level
+     *
+     * @param string $accessToken
+     * @param string $withdrawAmount
+     * @return bool
+     */
+    public function withdrawFromBalanceByAccessToken(string $accessToken, string $withdrawAmount)
     {
         $this
             ->connection
@@ -122,7 +100,7 @@ class AccountModel
         $balanceStatement->execute();
         $balance = $balanceStatement->fetchColumn();
 
-        $newBalance = $balance - $withdrawAmount;
+        $newBalance = (float) bcsub($balance, $withdrawAmount, 2);
 
         if ($newBalance < 0) {
             $this
@@ -147,20 +125,6 @@ class AccountModel
             ->connection
             ->query("COMMIT;")
             ->execute();
-
-        return true;
-    }
-
-    public function isAuthorized()
-    {
-        if (!isset($_COOKIE['access_token'])) {
-            return false;
-        }
-
-        $user = $this->getUserByAccessToken($_COOKIE['access_token']);
-        if (null === $user) {
-            return false;
-        }
 
         return true;
     }
