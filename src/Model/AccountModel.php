@@ -143,8 +143,6 @@ class AccountModel
         $statement->bindValue(':accessToken', $accessToken);
         $statement->execute();
 
-        sleep(1);
-
         $this
             ->connection
             ->query("COMMIT;")
