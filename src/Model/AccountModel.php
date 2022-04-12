@@ -12,14 +12,13 @@ class AccountModel
 
     public function __construct(MysqlConnection $connection)
     {
-        $this->connection = $connection;
+        $this->connection = $connection->getConnection();
     }
 
     public function getUserByUsername($username): ?Account
     {
         $statement = $this
             ->connection
-            ->getConnection()
             ->prepare("
                 SELECT * FROM account WHERE username = :username;
             ");
@@ -40,7 +39,6 @@ class AccountModel
     {
         $statement = $this
             ->connection
-            ->getConnection()
             ->prepare("
                 SELECT * FROM account WHERE access_token = :accessToken;
             ");
@@ -61,7 +59,6 @@ class AccountModel
     {
         $statement = $this
             ->connection
-            ->getConnection()
             ->prepare("
                 UPDATE account SET access_token = :accessToken WHERE username = :username;
             ");
@@ -112,13 +109,11 @@ class AccountModel
     {
         $this
             ->connection
-            ->getConnection()
-            ->query("START TRANSACTION; SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;")
+            ->query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; START TRANSACTION;")
             ->execute();
 
         $balanceStatement = $this
             ->connection
-            ->getConnection()
             ->prepare("
                 SELECT balance FROM account WHERE access_token = :accessToken;
             ");
@@ -132,7 +127,6 @@ class AccountModel
         if ($newBalance < 0) {
             $this
                 ->connection
-                ->getConnection()
                 ->query("ROLLBACK;")
                 ->execute();
 
@@ -141,7 +135,6 @@ class AccountModel
 
         $statement = $this
             ->connection
-            ->getConnection()
             ->prepare("
                 UPDATE account SET balance = :balance WHERE access_token = :accessToken;
             ");
@@ -150,9 +143,10 @@ class AccountModel
         $statement->bindValue(':accessToken', $accessToken);
         $statement->execute();
 
+        sleep(1);
+
         $this
             ->connection
-            ->getConnection()
             ->query("COMMIT;")
             ->execute();
 

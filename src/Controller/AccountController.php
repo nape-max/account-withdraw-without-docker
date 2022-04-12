@@ -108,6 +108,8 @@ class AccountController
 
                 if ($isWithdrawed) {
                     header("Location: /account");
+                    sleep(1); // Чтобы страница с успехом отображалась позже и на обоих страницах не было ошибки "Не удалось списать средства из-за куки установленной на другой странице", не влияет на логику - просто недоработка механизма вывода ошибок на фронтенд и общения между View.
+                    setcookie('is_withdraw_failed', false, 0, "/account", "finance-app", false, true);
                     exit;
                 } else {
                     setcookie('is_withdraw_failed', 1, 0, "/account", "finance-app", false, true);
