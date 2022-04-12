@@ -13,6 +13,6 @@ class MysqlConnection
 
     public function getConnection(): PDO
     {
-        return new PDO('mysql:host=db;dbname=finance-app', 'root', 'password');
+        return new PDO(self::DSN, self::MYSQL_USERNAME, self::MYSQL_PASSWORD);
     }
 }

@@ -4,9 +4,9 @@ namespace Route;
 
 class Request
 {
-    private $method;
-    private $route;
-    private $query;
+    private string $method;
+    private string $route;
+    private ?string $query;
 
     public function __construct()
     {

@@ -4,7 +4,7 @@ namespace View;
 
 class View
 {
-    function generate($content_view, $template_view, $data = null)
+    function generate(string $content_view, string $template_view, ?array $data = null)
     {
         if (is_array($data)) {
             extract($data);

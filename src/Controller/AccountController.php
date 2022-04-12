@@ -28,7 +28,7 @@ class AccountController
 
         if (isset($_COOKIE['is_authorize_failure'])) {
             $data['errors'][] = "Введенное имя пользователя или пароль не совпадают, проверьте введенные данные.";
-            setcookie('is_authorize_failure', 1, 0, "/account/authorize", "finance-app", false, true);
+            setcookie('is_authorize_failure', false, 0, "/account/authorize", "finance-app", false, true);
         }
 
         $view = new View();
@@ -40,9 +40,9 @@ class AccountController
     {
         if (isset($_COOKIE['access_token'])) {
             $accountService = new AccountService(new AccountRepository(new MysqlConnection()), new AccountMapper());
-            $user = $accountService->getAccountByAccessToken($_COOKIE['access_token']);
+            $account = $accountService->getAccountByAccessToken($_COOKIE['access_token']);
 
-            if ($accountService->setAccessTokenByUsername(null, $user->username)) {
+            if ($accountService->setAccessTokenByUsername(null, $account->getUsername())) {
                 setcookie('access_token', false);
             }
         }
@@ -86,17 +86,17 @@ class AccountController
         }
 
         if (isset($_COOKIE['is_amount_wrong'])) {
-            $data['errors'][] = "Неверное значение суммы к списанию. Необходимо ввести положительное число. Примеры: 500, 500.0, 500.05";
+            $data['errors'][] = "Неверное значение суммы к списанию. Необходимо ввести положительное число. Примеры: 500; 500.0; 500.05; 500,05";
             setcookie('is_amount_wrong', false, 0, "/account", "finance-app", false, true);
         }
 
         $accountService = new AccountService(new AccountRepository(new MysqlConnection()), new AccountMapper());
         $view = new View();
 
-        $user = $accountService->getAccountByAccessToken($_COOKIE['access_token']);
+        $account = $accountService->getAccountByAccessToken($_COOKIE['access_token']);
 
-        $data['username'] = $user->getUsername();
-        $data['balance'] = (string) $user->getBalance();
+        $data['username'] = $account->getUsername();
+        $data['balance'] = (string) $account->getBalance();
 
         $view->generate('Account', 'AccountView', $data);
     }
@@ -120,11 +120,11 @@ class AccountController
 
         $accountService = new AccountService(new AccountRepository(new MysqlConnection()), new AccountMapper());
 
-        $userByAccessToken = $accountService->getAccountByAccessToken($accessTokenFromCookie);
-        $userByUsername = $accountService->getAccountByUsername($usernameFromRequest);
+        $accountByAccessToken = $accountService->getAccountByAccessToken($accessTokenFromCookie);
+        $accountByUsername = $accountService->getAccountByUsername($usernameFromRequest);
 
-        if (null !== $userByUsername) {
-            if ($accountService->withdrawFromBalance($amountFromRequest, $passwordFromRequest, $userByUsername, $userByAccessToken)) {
+        if (null !== $accountByUsername) {
+            if ($accountService->withdrawFromBalance($amountFromRequest, $passwordFromRequest, $accountByUsername, $accountByAccessToken)) {
                 header("Location: /account");
                 sleep(1); // Чтобы страница с успехом отображалась позже и на обоих страницах не было ошибки "Не удалось списать средства из-за куки установленной на другой странице", не влияет на логику - просто недоработка механизма вывода ошибок на фронтенд и общения между View.
                 setcookie('is_withdraw_failed', false, 0, "/account", "finance-app", false, true);

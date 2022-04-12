@@ -40,7 +40,12 @@ class Router
         exit;
     }
 
-    private static function controllers()
+    /**
+     * All routes in app.
+     *
+     * @return array
+     */
+    private static function controllers(): array
     {
         return [
             '' => [
